@@ -1,46 +1,71 @@
-# 🚀 ConvertHub Pro - All-in-One File Converter
+# 🚀 Universal Converter Pro
 
-A professional, full-stack file conversion and compression solution with ultra-sleek corporate UI/UX.
+Professional file conversion and compression platform with ultra-modern mobile-first design, user registration system, and corporate-grade UI/UX.
 
 ## ✨ Features
 
 ### Supported Conversions:
 
 **🖼️ Images**
-- PNG, JPG, WEBP, BMP, GIF, TIFF, ICO
-- Quality adjustment
+- PNG, JPG, JPEG, WEBP, HEIC, SVG, BMP, GIF, TIFF, ICO
+- Quality adjustment (1-100%)
+- Compression options
 - Instant conversion
 
 **📄 Documents**
-- PDF, DOCX, TXT, HTML, Markdown
+- PDF, DOCX, DOC, TXT, HTML, MD, RTF
 - Text extraction
 - Format preservation
+- Document compression
 
 **🎬 Videos**
-- MP4, AVI, MOV, MKV, WEBM, FLV
+- MP4, AVI, MOV, MKV, WEBM, FLV, WMV
 - High-quality encoding
 - Format optimization
+- Quality control
 
 **🎵 Audio**
-- MP3, WAV, OGG, AAC, FLAC, M4A
+- MP3, WAV, OGG, AAC, FLAC, M4A, WMA
 - Bitrate optimization
 - Lossless conversion
 
 **📦 Archives**
-- ZIP, TAR, GZ
+- ZIP, TAR, GZ, 7Z
 - Extract and repackage
 - Compression optimization
+- Multi-level compression
 
 **📊 Data**
-- JSON, CSV, XML, YAML, XLSX
+- JSON, CSV, XML, YAML, XLSX, XLS
 - Structure preservation
 - Format validation
+
+### 🎨 Design Features
+
+- **Corporate Theme**: Professional blue, white, and grey color scheme
+- **Ultra Mobile-Friendly**: Fully responsive, mobile-first design
+- **Touch Optimized**: Perfect for tablets and smartphones
+- **User Registration**: Optional login system with user profiles
+- **Professional UI**: Modern, clean, and intuitive interface
+- **100% Free**: No hidden fees, completely free to use forever
+
+### 👤 User System
+
+- **Guest Access**: Use without registration
+- **Optional Registration**:
+  - Full Name
+  - Email Address
+  - Contact Number
+  - ID Number (optional)
+  - Role Selection (Student, Employee, Freelancer, Developer, etc.)
+- **User Profile**: Avatar with initials, personalized experience
+- **Persistent Login**: LocalStorage-based authentication
 
 ## 🛠️ Installation
 
 ### Prerequisites
 
-1. **Node.js** (v14 or higher)
+1. **Node.js** (v18 or higher)
    ```bash
    # Check if installed
    node --version
@@ -101,7 +126,37 @@ A professional, full-stack file conversion and compression solution with ultra-s
 4. **Access the application**
    - Open your browser
    - Go to: `http://localhost:3000`
-   - Or open `index.html` directly in browser
+
+## 🌐 Deploy to Netlify
+
+### Quick Deploy
+
+1. **Push to GitHub**
+   ```bash
+   git add .
+   git commit -m "Initial commit"
+   git push origin main
+   ```
+
+2. **Connect to Netlify**
+   - Go to [netlify.com](https://netlify.com)
+   - Click "New site from Git"
+   - Choose your repository
+   - Build settings are auto-detected from `netlify.toml`
+   - Click "Deploy site"
+
+3. **Your site is live!**
+   - Get your free `.netlify.app` URL
+   - Add custom domain if desired
+
+### Manual Deploy
+
+```bash
+npm install -g netlify-cli
+netlify login
+netlify init
+netlify deploy --prod
+```
 
 ## 🚀 Usage
 
