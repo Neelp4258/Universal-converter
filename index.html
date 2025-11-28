@@ -815,8 +815,8 @@
             <p class="subtitle">Convert images, documents, videos, audio files & more in seconds</p>
             <span class="free-badge">✓ 100% FREE TO USE</span>
             <p style="font-size: 0.9rem; color: var(--dark-grey); margin-top: 15px;">
-                <strong style="color: var(--success);">✓ Image conversions (PNG/JPG/WEBP) work instantly!</strong><br>
-                <span style="font-size: 0.85rem;">For videos/audio/documents: see deployment guide</span>
+                <strong style="color: var(--success);">✓ Working NOW: Images, Documents, Data, ZIP - All Client-Side!</strong><br>
+                <span style="font-size: 0.85rem;">Videos/Audio require backend deployment</span>
             </p>
         </div>
 
@@ -1066,6 +1066,9 @@
         </p>
     </footer>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
     <script>
         // Configuration
         const API_URL = window.location.hostname === 'localhost'
@@ -1080,12 +1083,12 @@
 
         // Format options
         const formatOptions = {
-            image: ['PNG', 'JPG', 'JPEG', 'WEBP', 'HEIC', 'SVG', 'BMP', 'GIF', 'TIFF', 'ICO'],
-            document: ['PDF', 'DOCX', 'DOC', 'TXT', 'HTML', 'MD', 'RTF'],
-            video: ['MP4', 'AVI', 'MOV', 'MKV', 'WEBM', 'FLV', 'WMV'],
-            audio: ['MP3', 'WAV', 'OGG', 'AAC', 'FLAC', 'M4A', 'WMA'],
-            archive: ['ZIP', 'TAR', 'GZ', '7Z'],
-            data: ['JSON', 'CSV', 'XML', 'YAML', 'XLSX', 'XLS']
+            image: ['PNG', 'JPG', 'JPEG', 'WEBP'],
+            document: ['PDF', 'TXT', 'HTML', 'MD'],
+            video: ['MP4', 'WEBM'],
+            audio: ['MP3', 'WAV'],
+            archive: ['ZIP'],
+            data: ['JSON', 'CSV', 'XML', 'YAML']
         };
 
         // Initialize
@@ -1302,13 +1305,23 @@
                     canConvertClientSide: canConvertClientSide(selectedFormat)
                 });
 
-                // Try client-side conversion first for images
-                if (selectedType === 'image' && canConvertClientSide(selectedFormat)) {
+                // Try client-side conversion first
+                if (canConvertClientSide(selectedFormat)) {
                     console.log('Using client-side conversion');
-                    await convertImageClientSide();
+
+                    // Route to appropriate converter
+                    if (selectedType === 'image') {
+                        await convertImageClientSide();
+                    } else if (selectedType === 'document') {
+                        await convertDocumentClientSide();
+                    } else if (selectedType === 'data') {
+                        await convertDataClientSide();
+                    } else if (selectedType === 'archive') {
+                        await convertArchiveClientSide();
+                    }
                 } else {
-                    console.log('Using server-side conversion');
-                    // Try server-side conversion
+                    console.log('Using server-side conversion (or not supported)');
+                    // Try server-side conversion or show limitation message
                     await convertServerSide();
                 }
             } catch (error) {
@@ -1320,23 +1333,38 @@
         }
 
         function canConvertClientSide(format) {
-            // Formats that can be converted using Canvas API
             const fmt = format.toLowerCase();
 
-            // Check browser support for WEBP
-            if (fmt === 'webp') {
-                const canvas = document.createElement('canvas');
-                const hasWebP = canvas.toDataURL('image/webp').indexOf('data:image/webp') === 0;
-                if (!hasWebP) {
-                    console.warn('Browser does not support WEBP conversion');
-                    return false;
+            // Image formats (Canvas API)
+            if (['png', 'jpg', 'jpeg', 'webp'].includes(fmt) && selectedType === 'image') {
+                if (fmt === 'webp') {
+                    const canvas = document.createElement('canvas');
+                    const hasWebP = canvas.toDataURL('image/webp').indexOf('data:image/webp') === 0;
+                    if (!hasWebP) {
+                        console.warn('Browser does not support WEBP conversion');
+                        return false;
+                    }
                 }
+                return true;
             }
 
-            const supported = ['png', 'jpg', 'jpeg', 'webp'];
-            const canConvert = supported.includes(fmt);
-            console.log(`Can convert ${format} client-side: ${canConvert}`);
-            return canConvert;
+            // Document formats (text-based)
+            if (['pdf', 'txt', 'html', 'md'].includes(fmt) && selectedType === 'document') {
+                return true;
+            }
+
+            // Data formats (JSON/CSV/XML/YAML)
+            if (['json', 'csv', 'xml', 'yaml'].includes(fmt) && selectedType === 'data') {
+                return true;
+            }
+
+            // Archive (ZIP creation)
+            if (fmt === 'zip' && selectedType === 'archive') {
+                return true;
+            }
+
+            console.log(`Can convert ${format} client-side: false`);
+            return false;
         }
 
         async function convertImageClientSide() {
@@ -1418,6 +1446,365 @@
 
                 console.log('Reading file as data URL...');
                 reader.readAsDataURL(selectedFile);
+            });
+        }
+
+        // DOCUMENT CONVERSION (Client-Side)
+        async function convertDocumentClientSide() {
+            console.log('Starting client-side document conversion...');
+
+            return new Promise(async (resolve, reject) => {
+                try {
+                    const reader = new FileReader();
+
+                    reader.onload = async function(e) {
+                        const content = e.target.result;
+                        let outputContent;
+                        let mimeType;
+                        const inputExt = selectedFile.name.split('.').pop().toLowerCase();
+
+                        // Convert based on target format
+                        if (selectedFormat === 'txt') {
+                            // Convert to plain text
+                            if (inputExt === 'html') {
+                                const tempDiv = document.createElement('div');
+                                tempDiv.innerHTML = content;
+                                outputContent = tempDiv.textContent || tempDiv.innerText;
+                            } else {
+                                outputContent = content;
+                            }
+                            mimeType = 'text/plain';
+
+                        } else if (selectedFormat === 'html') {
+                            // Convert to HTML
+                            if (inputExt === 'txt' || inputExt === 'md') {
+                                const lines = content.split('\n');
+                                const htmlLines = lines.map(line => {
+                                    if (line.startsWith('#')) return `<h${line.split('#').length - 1}>${line.replace(/^#+\s*/, '')}</h${line.split('#').length - 1}>`;
+                                    return `<p>${line}</p>`;
+                                }).join('\n');
+
+                                outputContent = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Converted Document</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; line-height: 1.6; }
+    </style>
+</head>
+<body>
+${htmlLines}
+</body>
+</html>`;
+                            } else {
+                                outputContent = content;
+                            }
+                            mimeType = 'text/html';
+
+                        } else if (selectedFormat === 'md') {
+                            // Convert to Markdown
+                            if (inputExt === 'txt') {
+                                outputContent = content; // Plain text works as markdown
+                            } else if (inputExt === 'html') {
+                                const tempDiv = document.createElement('div');
+                                tempDiv.innerHTML = content;
+                                outputContent = tempDiv.textContent || tempDiv.innerText;
+                            } else {
+                                outputContent = content;
+                            }
+                            mimeType = 'text/markdown';
+
+                        } else if (selectedFormat === 'pdf') {
+                            // Convert to PDF using jsPDF
+                            const { jsPDF } = window.jspdf;
+                            const doc = new jsPDF();
+
+                            // Extract text content
+                            let textContent;
+                            if (inputExt === 'html') {
+                                const tempDiv = document.createElement('div');
+                                tempDiv.innerHTML = content;
+                                textContent = tempDiv.textContent || tempDiv.innerText;
+                            } else {
+                                textContent = content;
+                            }
+
+                            // Split text into lines and add to PDF
+                            const lines = doc.splitTextToSize(textContent, 180);
+                            doc.text(lines, 10, 10);
+
+                            const blob = doc.output('blob');
+                            convertedFileUrl = URL.createObjectURL(blob);
+                            window.convertedBlob = blob;
+                            window.convertedFilename = `converted-${Date.now()}.pdf`;
+
+                            document.getElementById('progressSection').classList.remove('active');
+                            document.getElementById('resultSection').classList.add('active');
+                            resolve();
+                            return;
+                        }
+
+                        // Create blob for text-based formats
+                        const blob = new Blob([outputContent], { type: mimeType });
+                        convertedFileUrl = URL.createObjectURL(blob);
+                        window.convertedBlob = blob;
+                        window.convertedFilename = `converted-${Date.now()}.${selectedFormat}`;
+
+                        console.log('Document conversion successful!');
+                        document.getElementById('progressSection').classList.remove('active');
+                        document.getElementById('resultSection').classList.add('active');
+                        resolve();
+                    };
+
+                    reader.onerror = function(err) {
+                        console.error('FileReader error:', err);
+                        reject(new Error('Failed to read document'));
+                    };
+
+                    reader.readAsText(selectedFile);
+
+                } catch (error) {
+                    console.error('Document conversion error:', error);
+                    reject(error);
+                }
+            });
+        }
+
+        // DATA CONVERSION (Client-Side)
+        async function convertDataClientSide() {
+            console.log('Starting client-side data conversion...');
+
+            return new Promise((resolve, reject) => {
+                try {
+                    const reader = new FileReader();
+
+                    reader.onload = function(e) {
+                        try {
+                            const content = e.target.result;
+                            const inputExt = selectedFile.name.split('.').pop().toLowerCase();
+                            let data;
+
+                            // Parse input format
+                            if (inputExt === 'json') {
+                                data = JSON.parse(content);
+                            } else if (inputExt === 'csv') {
+                                const lines = content.trim().split('\n');
+                                const headers = lines[0].split(',').map(h => h.trim());
+                                data = lines.slice(1).map(line => {
+                                    const values = line.split(',').map(v => v.trim());
+                                    const obj = {};
+                                    headers.forEach((h, i) => obj[h] = values[i] || '');
+                                    return obj;
+                                });
+                            } else if (inputExt === 'xml') {
+                                const parser = new DOMParser();
+                                const xmlDoc = parser.parseFromString(content, 'text/xml');
+                                data = xmlToJson(xmlDoc);
+                            } else if (inputExt === 'yaml' || inputExt === 'yml') {
+                                data = parseSimpleYAML(content);
+                            } else {
+                                throw new Error('Unsupported input format');
+                            }
+
+                            // Convert to output format
+                            let outputContent;
+                            let mimeType;
+
+                            if (selectedFormat === 'json') {
+                                outputContent = JSON.stringify(data, null, 2);
+                                mimeType = 'application/json';
+                            } else if (selectedFormat === 'csv') {
+                                if (!Array.isArray(data)) {
+                                    data = [data];
+                                }
+                                if (data.length > 0) {
+                                    const headers = Object.keys(data[0]);
+                                    const csvContent = [
+                                        headers.join(','),
+                                        ...data.map(row => headers.map(h => row[h] || '').join(','))
+                                    ].join('\n');
+                                    outputContent = csvContent;
+                                    mimeType = 'text/csv';
+                                } else {
+                                    throw new Error('No data to convert');
+                                }
+                            } else if (selectedFormat === 'xml') {
+                                outputContent = jsonToXml(data);
+                                mimeType = 'application/xml';
+                            } else if (selectedFormat === 'yaml') {
+                                outputContent = jsonToYAML(data);
+                                mimeType = 'text/yaml';
+                            }
+
+                            const blob = new Blob([outputContent], { type: mimeType });
+                            convertedFileUrl = URL.createObjectURL(blob);
+                            window.convertedBlob = blob;
+                            window.convertedFilename = `converted-${Date.now()}.${selectedFormat}`;
+
+                            console.log('Data conversion successful!');
+                            document.getElementById('progressSection').classList.remove('active');
+                            document.getElementById('resultSection').classList.add('active');
+                            resolve();
+
+                        } catch (error) {
+                            reject(error);
+                        }
+                    };
+
+                    reader.onerror = function(err) {
+                        reject(new Error('Failed to read file'));
+                    };
+
+                    reader.readAsText(selectedFile);
+
+                } catch (error) {
+                    console.error('Data conversion error:', error);
+                    reject(error);
+                }
+            });
+        }
+
+        // Helper: XML to JSON
+        function xmlToJson(xml) {
+            let obj = {};
+            if (xml.nodeType == 1) {
+                if (xml.attributes.length > 0) {
+                    obj["@attributes"] = {};
+                    for (let j = 0; j < xml.attributes.length; j++) {
+                        const attribute = xml.attributes.item(j);
+                        obj["@attributes"][attribute.nodeName] = attribute.nodeValue;
+                    }
+                }
+            } else if (xml.nodeType == 3) {
+                obj = xml.nodeValue;
+            }
+            if (xml.hasChildNodes()) {
+                for (let i = 0; i < xml.childNodes.length; i++) {
+                    const item = xml.childNodes.item(i);
+                    const nodeName = item.nodeName;
+                    if (typeof (obj[nodeName]) == "undefined") {
+                        obj[nodeName] = xmlToJson(item);
+                    } else {
+                        if (typeof (obj[nodeName].push) == "undefined") {
+                            const old = obj[nodeName];
+                            obj[nodeName] = [];
+                            obj[nodeName].push(old);
+                        }
+                        obj[nodeName].push(xmlToJson(item));
+                    }
+                }
+            }
+            return obj;
+        }
+
+        // Helper: JSON to XML
+        function jsonToXml(obj, rootName = 'root') {
+            let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+            xml += `<${rootName}>\n`;
+            xml += objectToXml(obj, 1);
+            xml += `</${rootName}>`;
+            return xml;
+        }
+
+        function objectToXml(obj, indent = 0) {
+            let xml = '';
+            const spaces = '  '.repeat(indent);
+
+            if (Array.isArray(obj)) {
+                obj.forEach(item => {
+                    xml += `${spaces}<item>\n`;
+                    xml += objectToXml(item, indent + 1);
+                    xml += `${spaces}</item>\n`;
+                });
+            } else if (typeof obj === 'object' && obj !== null) {
+                Object.keys(obj).forEach(key => {
+                    if (key !== '@attributes') {
+                        xml += `${spaces}<${key}>`;
+                        if (typeof obj[key] === 'object') {
+                            xml += '\n' + objectToXml(obj[key], indent + 1) + spaces;
+                        } else {
+                            xml += obj[key];
+                        }
+                        xml += `</${key}>\n`;
+                    }
+                });
+            } else {
+                xml += spaces + obj + '\n';
+            }
+
+            return xml;
+        }
+
+        // Helper: JSON to YAML
+        function jsonToYAML(obj, indent = 0) {
+            let yaml = '';
+            const spaces = '  '.repeat(indent);
+
+            if (Array.isArray(obj)) {
+                obj.forEach(item => {
+                    yaml += `${spaces}- `;
+                    if (typeof item === 'object') {
+                        yaml += '\n' + jsonToYAML(item, indent + 1);
+                    } else {
+                        yaml += item + '\n';
+                    }
+                });
+            } else if (typeof obj === 'object' && obj !== null) {
+                Object.keys(obj).forEach(key => {
+                    yaml += `${spaces}${key}: `;
+                    if (typeof obj[key] === 'object') {
+                        yaml += '\n' + jsonToYAML(obj[key], indent + 1);
+                    } else {
+                        yaml += obj[key] + '\n';
+                    }
+                });
+            } else {
+                yaml += obj + '\n';
+            }
+
+            return yaml;
+        }
+
+        // Helper: Simple YAML parser
+        function parseSimpleYAML(yaml) {
+            const obj = {};
+            const lines = yaml.split('\n');
+            lines.forEach(line => {
+                const match = line.match(/^\s*(\w+):\s*(.+)$/);
+                if (match) {
+                    obj[match[1]] = match[2];
+                }
+            });
+            return obj;
+        }
+
+        // ARCHIVE CONVERSION (Client-Side - ZIP creation)
+        async function convertArchiveClientSide() {
+            console.log('Starting client-side archive conversion...');
+
+            return new Promise(async (resolve, reject) => {
+                try {
+                    const zip = new JSZip();
+
+                    // Add the file to zip
+                    zip.file(selectedFile.name, selectedFile);
+
+                    // Generate ZIP
+                    const blob = await zip.generateAsync({ type: 'blob' });
+                    convertedFileUrl = URL.createObjectURL(blob);
+                    window.convertedBlob = blob;
+                    window.convertedFilename = `archive-${Date.now()}.zip`;
+
+                    console.log('Archive conversion successful!');
+                    document.getElementById('progressSection').classList.remove('active');
+                    document.getElementById('resultSection').classList.add('active');
+                    resolve();
+
+                } catch (error) {
+                    console.error('Archive conversion error:', error);
+                    reject(error);
+                }
             });
         }
 
