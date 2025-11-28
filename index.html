@@ -1294,10 +1294,20 @@
             document.getElementById('progressSection').classList.add('active');
 
             try {
+                // Debug logging
+                console.log('Converting:', {
+                    type: selectedType,
+                    format: selectedFormat,
+                    fileName: selectedFile.name,
+                    canConvertClientSide: canConvertClientSide(selectedFormat)
+                });
+
                 // Try client-side conversion first for images
                 if (selectedType === 'image' && canConvertClientSide(selectedFormat)) {
+                    console.log('Using client-side conversion');
                     await convertImageClientSide();
                 } else {
+                    console.log('Using server-side conversion');
                     // Try server-side conversion
                     await convertServerSide();
                 }
@@ -1311,17 +1321,36 @@
 
         function canConvertClientSide(format) {
             // Formats that can be converted using Canvas API
-            return ['png', 'jpg', 'jpeg', 'webp'].includes(format);
+            const fmt = format.toLowerCase();
+
+            // Check browser support for WEBP
+            if (fmt === 'webp') {
+                const canvas = document.createElement('canvas');
+                const hasWebP = canvas.toDataURL('image/webp').indexOf('data:image/webp') === 0;
+                if (!hasWebP) {
+                    console.warn('Browser does not support WEBP conversion');
+                    return false;
+                }
+            }
+
+            const supported = ['png', 'jpg', 'jpeg', 'webp'];
+            const canConvert = supported.includes(fmt);
+            console.log(`Can convert ${format} client-side: ${canConvert}`);
+            return canConvert;
         }
 
         async function convertImageClientSide() {
+            console.log('Starting client-side image conversion...');
+
             return new Promise((resolve, reject) => {
                 const reader = new FileReader();
 
                 reader.onload = function(e) {
+                    console.log('File loaded, creating image...');
                     const img = new Image();
 
                     img.onload = function() {
+                        console.log(`Image loaded: ${img.width}x${img.height}`);
                         try {
                             // Create canvas
                             const canvas = document.createElement('canvas');
@@ -1330,9 +1359,11 @@
 
                             const ctx = canvas.getContext('2d');
                             ctx.drawImage(img, 0, 0);
+                            console.log('Image drawn to canvas');
 
                             // Get quality
                             const quality = parseInt(document.getElementById('qualityInput').value) / 100;
+                            console.log(`Quality: ${quality}`);
 
                             // Convert to desired format
                             let mimeType = 'image/png';
@@ -1341,41 +1372,51 @@
                             } else if (selectedFormat === 'webp') {
                                 mimeType = 'image/webp';
                             }
+                            console.log(`Converting to ${mimeType}`);
 
                             canvas.toBlob(function(blob) {
                                 if (blob) {
+                                    console.log(`Blob created: ${blob.size} bytes`);
+
                                     // Create download URL
                                     convertedFileUrl = URL.createObjectURL(blob);
 
                                     // Store blob for download
                                     window.convertedBlob = blob;
-                                    window.convertedFilename = `converted.${selectedFormat}`;
+                                    window.convertedFilename = `converted-${Date.now()}.${selectedFormat}`;
+
+                                    console.log('Conversion successful!');
 
                                     // Show success
                                     document.getElementById('progressSection').classList.remove('active');
                                     document.getElementById('resultSection').classList.add('active');
                                     resolve();
                                 } else {
+                                    console.error('Failed to create blob');
                                     reject(new Error('Failed to create image blob'));
                                 }
                             }, mimeType, quality);
 
                         } catch (err) {
+                            console.error('Canvas conversion error:', err);
                             reject(err);
                         }
                     };
 
-                    img.onerror = function() {
-                        reject(new Error('Failed to load image'));
+                    img.onerror = function(err) {
+                        console.error('Image load error:', err);
+                        reject(new Error('Failed to load image. Make sure the file is a valid image.'));
                     };
 
                     img.src = e.target.result;
                 };
 
-                reader.onerror = function() {
+                reader.onerror = function(err) {
+                    console.error('FileReader error:', err);
                     reject(new Error('Failed to read file'));
                 };
 
+                console.log('Reading file as data URL...');
                 reader.readAsDataURL(selectedFile);
             });
         }
