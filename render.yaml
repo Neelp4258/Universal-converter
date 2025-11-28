@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: universal-converter-backend
+    env: node
+    buildCommand: |
+      # Install Node dependencies
+      npm install
+
+      # Install system dependencies for document conversion
+      apt-get update
+      apt-get install -y libreoffice libreoffice-writer libreoffice-calc libreoffice-impress
+
+      # Install FFmpeg for video/audio conversion
+      apt-get install -y ffmpeg
+
+      # Verify installations
+      libreoffice --version
+      ffmpeg -version
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        fromGroup: web
+    autoDeploy: true
