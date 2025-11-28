@@ -1,7 +1,5 @@
-// Netlify Function for basic image conversion
-// For advanced conversions (video, audio, documents), you'll need to deploy server.js separately
-
-const multipart = require('parse-multipart-data');
+// Netlify Function for conversion endpoint
+// Returns helpful error messages since full conversions require separate backend
 
 exports.handler = async (event, context) => {
   // Only allow POST requests
