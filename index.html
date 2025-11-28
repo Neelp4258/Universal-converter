@@ -815,8 +815,8 @@
             <p class="subtitle">Convert images, documents, videos, audio files & more in seconds</p>
             <span class="free-badge">✓ 100% FREE TO USE</span>
             <p style="font-size: 0.9rem; color: var(--dark-grey); margin-top: 15px;">
-                <strong style="color: var(--success);">✓ Working NOW: Images, Documents, Data, ZIP - All Client-Side!</strong><br>
-                <span style="font-size: 0.85rem;">Videos/Audio require backend deployment</span>
+                <strong style="color: var(--success);">✓ Working NOW: Images, PDF Reading, Documents, Data, ZIP!</strong><br>
+                <span style="font-size: 0.85rem;">Videos/Audio need FFmpeg (deploy backend - see docs)</span>
             </p>
         </div>
 
@@ -1068,6 +1068,11 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        // Configure PDF.js worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
 
     <script>
         // Configuration
@@ -1449,9 +1454,97 @@
             });
         }
 
+        // PDF READING (using PDF.js)
+        async function convertFromPDF() {
+            console.log('Reading PDF file...');
+
+            return new Promise(async (resolve, reject) => {
+                try {
+                    const arrayBuffer = await selectedFile.arrayBuffer();
+                    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+                    console.log(`PDF loaded: ${pdf.numPages} pages`);
+
+                    let fullText = '';
+
+                    // Extract text from all pages
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const textContent = await page.getTextContent();
+                        const pageText = textContent.items.map(item => item.str).join(' ');
+                        fullText += pageText + '\n\n';
+                    }
+
+                    console.log(`Extracted ${fullText.length} characters from PDF`);
+
+                    // Convert to target format
+                    let outputContent;
+                    let mimeType;
+                    let filename;
+
+                    if (selectedFormat === 'txt') {
+                        outputContent = fullText;
+                        mimeType = 'text/plain';
+                        filename = `converted-${Date.now()}.txt`;
+
+                    } else if (selectedFormat === 'html') {
+                        outputContent = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>PDF Content</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; line-height: 1.6; }
+        .page { margin-bottom: 30px; page-break-after: always; }
+    </style>
+</head>
+<body>
+    <div class="page">${fullText.replace(/\n/g, '<br>')}</div>
+</body>
+</html>`;
+                        mimeType = 'text/html';
+                        filename = `converted-${Date.now()}.html`;
+
+                    } else if (selectedFormat === 'md') {
+                        outputContent = fullText;
+                        mimeType = 'text/markdown';
+                        filename = `converted-${Date.now()}.md`;
+
+                    } else if (selectedFormat === 'pdf') {
+                        // PDF to PDF (just return same file)
+                        showError('Already a PDF file!');
+                        reject(new Error('File is already in PDF format'));
+                        return;
+                    }
+
+                    // Create blob and download
+                    const blob = new Blob([outputContent], { type: mimeType });
+                    convertedFileUrl = URL.createObjectURL(blob);
+                    window.convertedBlob = blob;
+                    window.convertedFilename = filename;
+
+                    console.log('PDF conversion successful!');
+                    document.getElementById('progressSection').classList.remove('active');
+                    document.getElementById('resultSection').classList.add('active');
+                    resolve();
+
+                } catch (error) {
+                    console.error('PDF conversion error:', error);
+                    reject(new Error('Failed to read PDF: ' + error.message));
+                }
+            });
+        }
+
         // DOCUMENT CONVERSION (Client-Side)
         async function convertDocumentClientSide() {
             console.log('Starting client-side document conversion...');
+
+            const inputExt = selectedFile.name.split('.').pop().toLowerCase();
+
+            // Handle PDF input specially (needs PDF.js)
+            if (inputExt === 'pdf') {
+                return await convertFromPDF();
+            }
 
             return new Promise(async (resolve, reject) => {
                 try {
@@ -1461,7 +1554,6 @@
                         const content = e.target.result;
                         let outputContent;
                         let mimeType;
-                        const inputExt = selectedFile.name.split('.').pop().toLowerCase();
 
                         // Convert based on target format
                         if (selectedFormat === 'txt') {
@@ -1846,12 +1938,38 @@ ${htmlLines}
                             'Image conversions (PNG, JPG, WEBP) work without a backend!';
                     }
                 } catch (e) {
-                    // Response wasn't JSON
-                    errorMessage = '⚠️ Backend server not available.\n\n' +
-                        'To use this converter:\n' +
-                        '• Images (PNG/JPG/WEBP): Works without backend ✓\n' +
-                        '• Videos/Audio/Documents: Deploy server.js separately\n\n' +
-                        'See README.md for deployment instructions.';
+                    // Response wasn't JSON - provide detailed explanation
+                    if (selectedType === 'video') {
+                        errorMessage = '🎬 VIDEO CONVERSION REQUIRES BACKEND\n\n' +
+                            '❌ Cannot convert videos in browser (needs FFmpeg)\n\n' +
+                            'What you CAN do:\n' +
+                            '✅ Images: PNG/JPG/WEBP (working now!)\n' +
+                            '✅ Documents: PDF/TXT/HTML/MD (working now!)\n' +
+                            '✅ Data: JSON/CSV/XML/YAML (working now!)\n\n' +
+                            'For videos: Deploy backend to Render (FREE)\n' +
+                            'See DEPLOYMENT-BACKEND.md for 5-min setup';
+                    } else if (selectedType === 'audio') {
+                        errorMessage = '🎵 AUDIO CONVERSION REQUIRES BACKEND\n\n' +
+                            '❌ Cannot convert audio in browser (needs FFmpeg)\n' +
+                            '❌ MP4 to MP3, WAV conversions need server\n\n' +
+                            'What you CAN do:\n' +
+                            '✅ Images: PNG/JPG/WEBP (working now!)\n' +
+                            '✅ Documents: PDF/TXT/HTML/MD (working now!)\n' +
+                            '✅ Data: JSON/CSV/XML/YAML (working now!)\n\n' +
+                            'For audio: Deploy backend to Render (FREE)\n' +
+                            'See DEPLOYMENT-BACKEND.md for 5-min setup';
+                    } else {
+                        errorMessage = '⚠️ Backend server not available.\n\n' +
+                            'WORKING NOW (Client-Side):\n' +
+                            '✅ Images: PNG/JPG/WEBP\n' +
+                            '✅ Documents: PDF/TXT/HTML/MD\n' +
+                            '✅ Data: JSON/CSV/XML/YAML\n' +
+                            '✅ Archives: ZIP creation\n\n' +
+                            'NEEDS BACKEND:\n' +
+                            '⏳ Videos (MP4/WEBM/etc)\n' +
+                            '⏳ Audio (MP3/WAV/etc)\n\n' +
+                            'See DEPLOYMENT-BACKEND.md for backend setup';
+                    }
                 }
                 throw new Error(errorMessage);
             }
