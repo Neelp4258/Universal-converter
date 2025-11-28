@@ -814,6 +814,10 @@
             <p>Professional File Conversion & Compression Platform</p>
             <p class="subtitle">Convert images, documents, videos, audio files & more in seconds</p>
             <span class="free-badge">✓ 100% FREE TO USE</span>
+            <p style="font-size: 0.9rem; color: var(--dark-grey); margin-top: 15px;">
+                <strong style="color: var(--success);">✓ Image conversions (PNG/JPG/WEBP) work instantly!</strong><br>
+                <span style="font-size: 0.85rem;">For videos/audio/documents: see deployment guide</span>
+            </p>
         </div>
 
         <!-- Conversion Type Cards -->
@@ -1289,6 +1293,94 @@
             document.getElementById('conversionOptions').classList.remove('active');
             document.getElementById('progressSection').classList.add('active');
 
+            try {
+                // Try client-side conversion first for images
+                if (selectedType === 'image' && canConvertClientSide(selectedFormat)) {
+                    await convertImageClientSide();
+                } else {
+                    // Try server-side conversion
+                    await convertServerSide();
+                }
+            } catch (error) {
+                console.error('Conversion error:', error);
+                showError(error.message || 'Conversion failed');
+                document.getElementById('progressSection').classList.remove('active');
+                document.getElementById('conversionOptions').classList.add('active');
+            }
+        }
+
+        function canConvertClientSide(format) {
+            // Formats that can be converted using Canvas API
+            return ['png', 'jpg', 'jpeg', 'webp'].includes(format);
+        }
+
+        async function convertImageClientSide() {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+
+                reader.onload = function(e) {
+                    const img = new Image();
+
+                    img.onload = function() {
+                        try {
+                            // Create canvas
+                            const canvas = document.createElement('canvas');
+                            canvas.width = img.width;
+                            canvas.height = img.height;
+
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0);
+
+                            // Get quality
+                            const quality = parseInt(document.getElementById('qualityInput').value) / 100;
+
+                            // Convert to desired format
+                            let mimeType = 'image/png';
+                            if (selectedFormat === 'jpg' || selectedFormat === 'jpeg') {
+                                mimeType = 'image/jpeg';
+                            } else if (selectedFormat === 'webp') {
+                                mimeType = 'image/webp';
+                            }
+
+                            canvas.toBlob(function(blob) {
+                                if (blob) {
+                                    // Create download URL
+                                    convertedFileUrl = URL.createObjectURL(blob);
+
+                                    // Store blob for download
+                                    window.convertedBlob = blob;
+                                    window.convertedFilename = `converted.${selectedFormat}`;
+
+                                    // Show success
+                                    document.getElementById('progressSection').classList.remove('active');
+                                    document.getElementById('resultSection').classList.add('active');
+                                    resolve();
+                                } else {
+                                    reject(new Error('Failed to create image blob'));
+                                }
+                            }, mimeType, quality);
+
+                        } catch (err) {
+                            reject(err);
+                        }
+                    };
+
+                    img.onerror = function() {
+                        reject(new Error('Failed to load image'));
+                    };
+
+                    img.src = e.target.result;
+                };
+
+                reader.onerror = function() {
+                    reject(new Error('Failed to read file'));
+                };
+
+                reader.readAsDataURL(selectedFile);
+            });
+        }
+
+        async function convertServerSide() {
             const formData = new FormData();
             formData.append('file', selectedFile);
             formData.append('outputFormat', selectedFormat);
@@ -1306,35 +1398,58 @@
                 formData.append('userId', currentUser.email);
             }
 
-            try {
-                const response = await fetch(`${API_URL}/convert`, {
-                    method: 'POST',
-                    body: formData
-                });
+            const response = await fetch(`${API_URL}/convert`, {
+                method: 'POST',
+                body: formData
+            });
 
-                if (!response.ok) {
+            if (!response.ok) {
+                let errorMessage = 'Conversion failed';
+                try {
                     const error = await response.json();
-                    throw new Error(error.error || 'Conversion failed');
+                    errorMessage = error.error || error.message || errorMessage;
+
+                    // If server requires backend deployment
+                    if (error.clientSideOnly) {
+                        errorMessage = '⚠️ Server-side conversions require backend deployment.\n\n' +
+                            'For video, audio, and document conversions, please:\n' +
+                            '1. Deploy server.js to Heroku, Railway, or Render\n' +
+                            '2. Update API_URL in index.html\n\n' +
+                            'Image conversions (PNG, JPG, WEBP) work without a backend!';
+                    }
+                } catch (e) {
+                    // Response wasn't JSON
+                    errorMessage = '⚠️ Backend server not available.\n\n' +
+                        'To use this converter:\n' +
+                        '• Images (PNG/JPG/WEBP): Works without backend ✓\n' +
+                        '• Videos/Audio/Documents: Deploy server.js separately\n\n' +
+                        'See README.md for deployment instructions.';
                 }
-
-                const result = await response.json();
-                convertedFileUrl = `${API_URL}/download/${result.filename}`;
-
-                // Show success
-                document.getElementById('progressSection').classList.remove('active');
-                document.getElementById('resultSection').classList.add('active');
-
-            } catch (error) {
-                console.error('Conversion error:', error);
-                showError(error.message);
-                document.getElementById('progressSection').classList.remove('active');
-                document.getElementById('conversionOptions').classList.add('active');
+                throw new Error(errorMessage);
             }
+
+            const result = await response.json();
+            convertedFileUrl = `${API_URL}/download/${result.filename}`;
+
+            // Show success
+            document.getElementById('progressSection').classList.remove('active');
+            document.getElementById('resultSection').classList.add('active');
         }
 
         function downloadFile() {
             if (convertedFileUrl) {
-                window.location.href = convertedFileUrl;
+                // If it's a blob URL (client-side conversion)
+                if (window.convertedBlob && window.convertedFilename) {
+                    const link = document.createElement('a');
+                    link.href = convertedFileUrl;
+                    link.download = window.convertedFilename;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                } else {
+                    // Server-side conversion
+                    window.location.href = convertedFileUrl;
+                }
             }
         }
 
@@ -1343,10 +1458,17 @@
         }
 
         function resetConverter() {
+            // Clean up blob URL if it exists
+            if (convertedFileUrl && convertedFileUrl.startsWith('blob:')) {
+                URL.revokeObjectURL(convertedFileUrl);
+            }
+
             selectedFile = null;
             selectedFormat = null;
             selectedType = null;
             convertedFileUrl = null;
+            window.convertedBlob = null;
+            window.convertedFilename = null;
 
             document.getElementById('fileInput').value = '';
             document.getElementById('conversionOptions').classList.remove('active');
@@ -1359,12 +1481,15 @@
 
         function showError(message) {
             const errorDiv = document.getElementById('errorMessage');
-            errorDiv.textContent = '⚠️ ' + message;
+            // Replace newlines with <br> for HTML display
+            errorDiv.innerHTML = message.replace(/\n/g, '<br>');
             errorDiv.classList.add('active');
 
+            // Keep error visible longer for detailed messages
+            const timeout = message.length > 100 ? 10000 : 5000;
             setTimeout(() => {
                 errorDiv.classList.remove('active');
-            }, 5000);
+            }, timeout);
         }
 
         function formatFileSize(bytes) {
